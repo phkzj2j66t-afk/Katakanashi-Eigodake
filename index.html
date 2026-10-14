@@ -137,17 +137,72 @@ details li{margin:4px 0}
 #toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);background:var(--fg);color:var(--ink);font-weight:900;border-radius:999px;padding:10px 20px;max-width:calc(100% - 32px);text-align:center;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:10}
 #toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion:reduce){.topic{animation:none}#toast{transition:none}}
+
+/* setup: registration + end condition */
+.sect{display:grid;gap:10px}
+.sect h2{margin:0}
+.pcount{color:var(--fg);font-family:var(--body);font-weight:700;letter-spacing:0;margin-left:.4em}
+.nameinput[aria-invalid="true"]{border-color:var(--bad)}
+.msg{margin:0;color:var(--bad);font-weight:700;font-size:.92rem}
+.msg:empty{display:none}
+.endseg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;background:var(--surface);padding:6px;border-radius:16px;border:1px solid var(--line)}
+.endseg button{min-height:68px;border-radius:11px;background:transparent;font-weight:900;font-size:.88rem;line-height:1.3;color:var(--muted);padding:6px 4px;display:grid;place-items:center;align-content:center}
+.endseg button .L{font-family:var(--display);font-weight:400;font-size:1.15rem}
+.endseg button[aria-pressed="true"]{background:var(--mix);color:var(--ink)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;gap:12px}
+.subseg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.subseg button{min-height:48px;border-radius:12px;background:var(--raised);border:1px solid var(--line);font-weight:700;font-size:.85rem;color:var(--muted);padding:4px 8px}
+.subseg button[aria-pressed="true"]{border-color:var(--mix);color:var(--fg)}
+.step{display:grid;grid-template-columns:56px minmax(0,1fr) auto 56px;align-items:center;gap:8px}
+.stepb{min-height:56px;border-radius:14px;background:var(--raised);border:1px solid var(--line);font-size:1.5rem;font-weight:900}
+.stepb:disabled{opacity:.35}
+.numinput{min-height:56px;min-width:0;width:100%;border-radius:14px;background:var(--bg);border:1px solid var(--line);text-align:center;font-family:var(--display);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.unit{font-weight:900;color:var(--muted);min-width:1.2em}
+.hint2{margin:0;color:var(--muted);font-size:.9rem}
+
+/* play: extras */
+.endinfo{margin:-4px 0 10px;color:var(--muted);font-size:.85rem;font-weight:700}
+.tag.sub{background:var(--raised);color:var(--muted)}
+
+/* result */
+.result{max-width:560px;margin-inline:auto;display:grid;gap:16px}
+.banner{background:var(--surface);border:2px solid var(--mix);border-radius:22px;padding:20px 18px;display:grid;gap:6px;min-width:0}
+.banner .k{color:var(--mix);font-weight:900;letter-spacing:.1em;font-size:.9rem}
+.banner .w{font-family:var(--display);font-size:clamp(1.9rem,8vw,3rem);line-height:1.2;overflow-wrap:anywhere}
+.banner .why{color:var(--muted);font-size:.9rem}
+.rlist{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.rrow{display:grid;grid-template-columns:2.4ch minmax(0,1fr) auto;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:12px 16px}
+.rrow.first{border-color:var(--mix);background:var(--raised)}
+.rk{font-family:var(--display);font-size:1.3rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.rn{font-weight:900;font-size:1.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rs{font-family:var(--display);font-size:1.6rem;font-variant-numeric:tabular-nums}
+.rs small{font-family:var(--body);font-size:.7rem;color:var(--muted);margin-left:2px}
+.rs.neg{color:var(--bad)}
 </style>
 
 <div class="wrap">
   <section id="setup" hidden></section>
   <section id="play" hidden></section>
+  <section id="result" hidden></section>
 </div>
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
 (function(){
   "use strict";
+
+  /* ================= 設定値（ここを変えると初期値や上限が変わります） ================= */
+  var CONFIG = {
+    MIN_PLAYERS: 2,
+    MAX_PLAYERS: 10,
+    NAME_MAX: 10,
+    DEFAULT_NAMES: ["ゆうき","あや","けんた","みお","ひろ","さくら"],
+    LIMITS: { perPlayer:{min:1,max:10}, total:{min:1,max:100}, target:{min:1,max:99} },
+    /* type: "turns"(A 指定ターン) / "score"(B 目標スコア) / "free"(C 自由終了)
+       turnsBy: "perPlayer"(全員が○回出題者) / "total"(総ターン数) */
+    DEFAULT_END: { type:"turns", turnsBy:"perPlayer", perPlayer:2, total:12, target:5 }
+  };
+
   var KANA = /[゠-ヿ]/;
   var RAW = {
     "人物": ["ナポレオン","ベートーベン","レオナルド・ダ・ヴィンチ","マイケル・ジャクソン","スティーブ・ジョブズ","モーツァルト","ナイチンゲール","アインシュタイン","チャップリン","マリリン・モンロー","ピカソ","ビートルズ","クレオパトラ","コロンブス","エジソン","織田信長","坂本龍馬","聖徳太子","野口英世","紫式部","徳川家康","夏目漱石","大谷翔平","イチロー","卑弥呼"],
@@ -166,14 +221,89 @@ details li{margin:4px 0}
     E:{name:"エイゴダーケ", rule:"<b>英語だけで説明。</b>日本語は一言もNG。お題は日本語で表示。"}
   };
 
+  /* ================= 純粋関数（テスト対象） ================= */
+  function clampInt(v, min, max, fallback){
+    var n = parseInt(v, 10);
+    if(isNaN(n)) n = fallback;
+    return Math.min(max, Math.max(min, n));
+  }
+  function cleanName(s){ return String(s==null ? "" : s).replace(/[\s　]+/g," ").trim(); }
+  function validateNames(names){
+    var seen = {}, dup = {};
+    names.forEach(function(n,i){
+      var k = cleanName(n).toLowerCase(); if(!k) return;
+      if(seen[k]!==undefined){ dup[i] = 1; dup[seen[k]] = 1; } else { seen[k] = i; }
+    });
+    var d = Object.keys(dup).map(Number);
+    return { ok:d.length===0, dupIdx:d, message: d.length ? "同じ名前の人がいます。区別できる名前にしてください。" : "" };
+  }
+  function fillBlankNames(players){
+    var used = {};
+    players.forEach(function(p){ var k = cleanName(p.name).toLowerCase(); if(k) used[k] = 1; });
+    var n = 1;
+    players.forEach(function(p){
+      var c = cleanName(p.name);
+      if(c){ p.name = c; return; }
+      var cand;
+      do { cand = "プレイヤー"+(n++); } while(used[cand.toLowerCase()]);
+      used[cand.toLowerCase()] = 1; p.name = cand;
+    });
+  }
+  function checkEnd(st){
+    var e = st.end, ps = st.players;
+    if(!ps.length) return null;
+    if(e.type==="turns"){
+      if(e.turnsBy==="total") return st.done>=e.total ? {reason:"turns"} : null;
+      return ps.every(function(p){ return p.hosted>=e.perPlayer; }) ? {reason:"turns"} : null;
+    }
+    if(e.type==="score"){
+      return ps.some(function(p){ return p.score>=e.target; }) ? {reason:"score"} : null;
+    }
+    return null;
+  }
+  function ranking(ps){
+    var arr = ps.map(function(p,i){ return {p:p,i:i,rank:0}; })
+      .sort(function(a,b){ return (b.p.score-a.p.score) || (a.i-b.i); });
+    var rank = 0, prev = null;
+    arr.forEach(function(x,idx){ if(prev===null || x.p.score!==prev){ rank = idx+1; prev = x.p.score; } x.rank = rank; });
+    return arr;
+  }
+  function endProgress(st){
+    var e = st.end, ps = st.players;
+    if(e.type==="turns"){
+      if(e.turnsBy==="total") return "全"+e.total+"問で終了（あと"+Math.max(0,e.total-st.done)+"問）";
+      var left = 0; ps.forEach(function(p){ left += Math.max(0, e.perPlayer-p.hosted); });
+      return "全員が"+e.perPlayer+"回出題したら終了（あと"+left+"問）";
+    }
+    if(e.type==="score"){
+      var m = -Infinity; ps.forEach(function(p){ if(p.score>m) m = p.score; });
+      return "誰かが"+e.target+"点に届いたら終了（トップ "+m+"点）";
+    }
+    return "自由終了（「終了」ボタンで結果へ）";
+  }
+  function endHint(st){
+    var e = st.end, n = st.players.length;
+    if(e.type==="turns"){
+      if(e.turnsBy==="total") return "全"+e.total+"問で終了。出題者は順番に回ります。";
+      return n+"人 × "+e.perPlayer+"回 = 全"+(n*e.perPlayer)+"問で終了。";
+    }
+    if(e.type==="score") return "誰かが"+e.target+"点に届いた時点で終了。失敗でマイナスになることもあります。";
+    return "「終了」ボタンを押すまで続きます。";
+  }
+
+  /* ================= 状態 ================= */
   var S = {
-    view:"setup", started:false,
-    players:[{id:1,name:"ゆうき",score:0,foul:0},{id:2,name:"あや",score:0,foul:0},{id:3,name:"けんた",score:0,foul:0},{id:4,name:"みお",score:0,foul:0}],
-    nextId:5, presenter:0, mode:"MIX", cur:null, used:[], hist:[], round:1,
-    hide:true, revealed:false, confirmReset:false
+    view:"setup", started:false, players:[], nextId:1,
+    presenter:0, mode:"MIX", cur:null, used:[], hist:[], done:0,
+    hide:true, revealed:false, confirm:null, result:null,
+    end: JSON.parse(JSON.stringify(CONFIG.DEFAULT_END))
   };
-  var elSetup = document.getElementById("setup"), elPlay = document.getElementById("play"), elToast = document.getElementById("toast");
-  var toastTimer = null, resetTimer = null, focusNew = null;
+  function newPlayer(name){ return {id:S.nextId++, name:name, score:0, foul:0, hosted:0}; }
+  CONFIG.DEFAULT_NAMES.forEach(function(n){ S.players.push(newPlayer(n)); });
+
+  var elSetup = document.getElementById("setup"), elPlay = document.getElementById("play"),
+      elResult = document.getElementById("result"), elToast = document.getElementById("toast");
+  var toastTimer = null, confirmTimer = null, focusNew = null, lastView = null;
 
   function esc(s){ return String(s).replace(/[&<>"']/g,function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
   function toast(msg){
@@ -182,7 +312,7 @@ details li{margin:4px 0}
   }
   function byId(id){ for(var i=0;i<S.players.length;i++){ if(S.players[i].id===id) return S.players[i]; } return null; }
 
-  /* ---- topics ---- */
+  /* ---- お題 ---- */
   function draw(m){
     var pool = TOPICS.filter(function(x){ return m!=="K" || KANA.test(x.t); });
     var fresh = pool.filter(function(x){ return S.used.indexOf(x.t)<0; });
@@ -200,25 +330,42 @@ details li{margin:4px 0}
     S.cur = draw(m);
   }
 
-  /* ---- history ---- */
+  /* ---- 履歴（戻す） ---- */
   function snap(){
-    S.hist.push(JSON.stringify({players:S.players,presenter:S.presenter,cur:S.cur,used:S.used,mode:S.mode,round:S.round,nextId:S.nextId}));
+    S.hist.push(JSON.stringify({players:S.players,presenter:S.presenter,cur:S.cur,used:S.used,mode:S.mode,done:S.done,nextId:S.nextId}));
     if(S.hist.length>40) S.hist.shift();
   }
   function undo(){
     var h = S.hist.pop(); if(!h) return;
     var o = JSON.parse(h); for(var k in o){ S[k] = o[k]; }
-    S.revealed = false; render(); toast("ひとつ戻しました");
+    S.revealed = false; S.result = null; S.view = "play"; S.confirm = null;
+    render(); toast("ひとつ戻しました");
   }
   function rotate(){ S.presenter = (S.presenter+1) % S.players.length; }
 
-  /* ---- actions ---- */
+  /* ---- ゲーム進行 ---- */
+  function finishIfNeeded(){
+    var r = checkEnd(S);
+    if(!r) return false;
+    S.result = r; S.view = "result"; S.confirm = null; render();
+    return true;
+  }
+  function completeTurn(){
+    var q = S.players[S.presenter];
+    q.hosted++; S.done++; rotate();
+  }
   function correct(id){
     var p = byId(id), q = S.players[S.presenter]; if(!p||!q||p===q||p.foul>=2) return;
-    snap(); p.score++; q.score++; S.round++; rotate(); newTopic(); render();
+    snap(); p.score++; q.score++; completeTurn();
+    if(finishIfNeeded()) return;
+    newTopic(); render();
     toast(p.name+" 正解！ "+p.name+" +1 / 出題者 "+q.name+" +1");
   }
-  function none(){ snap(); S.round++; rotate(); newTopic(); render(); toast("全員不正解。加点なし"); }
+  function none(){
+    snap(); completeTurn();
+    if(finishIfNeeded()) return;
+    newTopic(); render(); toast("全員不正解。加点なし");
+  }
   function skip(){ snap(); newTopic(); render(); toast("お題をチェンジ"); }
   function swap(){ snap(); rotate(); S.revealed = false; render(); toast("出題者は "+S.players[S.presenter].name); }
   function fail(){
@@ -237,30 +384,107 @@ details li{margin:4px 0}
     if(m!=="MIX" && S.cur.m!==m){ snap(); newTopic(); }
     render();
   }
+  function finishManual(){
+    snap(); S.result = {reason:"manual"}; S.view = "result"; S.confirm = null; render();
+  }
+  function resetScores(){
+    S.players.forEach(function(p){ p.score = 0; p.foul = 0; p.hosted = 0; });
+    S.hist = []; S.used = []; S.done = 0; S.presenter = 0; S.confirm = null; S.result = null; S.revealed = false;
+  }
   function resetGame(){
-    S.players.forEach(function(p){ p.score = 0; p.foul = 0; });
-    S.hist = []; S.used = []; S.round = 1; S.presenter = 0; S.confirmReset = false;
-    newTopic(); render(); toast("新しいゲームを始めます");
+    resetScores(); S.view = "play"; newTopic(); render(); toast("新しいゲームを始めます");
+  }
+  function backToSetup(){
+    resetScores(); S.started = false; S.cur = null; S.view = "setup"; render();
   }
 
-  /* ---- render ---- */
+  /* ---- 設定画面の入力 ---- */
+  function syncEndFromInputs(){
+    ["perPlayer","total","target"].forEach(function(k){
+      var el = document.getElementById("end-"+k), L = CONFIG.LIMITS[k];
+      if(el) S.end[k] = clampInt(el.value, L.min, L.max, S.end[k]);
+    });
+  }
+  function refreshSetup(){
+    var v = validateNames(S.players.map(function(p){ return p.name; }));
+    S.players.forEach(function(p,i){
+      var el = document.getElementById("pn-"+p.id);
+      if(el) el.setAttribute("aria-invalid", v.dupIdx.indexOf(i)>=0 ? "true" : "false");
+    });
+    var msg = document.getElementById("setup-msg"); if(msg) msg.textContent = v.message;
+    var go = document.getElementById("go"); if(go) go.disabled = !(v.ok && S.players.length>=CONFIG.MIN_PLAYERS);
+    var hint = document.getElementById("end-hint"); if(hint) hint.textContent = endHint(S);
+    Array.prototype.forEach.call(document.querySelectorAll('[data-act="step"]'), function(btn){
+      var k = btn.getAttribute("data-key"), d = parseInt(btn.getAttribute("data-d"),10), L = CONFIG.LIMITS[k];
+      btn.disabled = d<0 ? S.end[k]<=L.min : S.end[k]>=L.max;
+    });
+  }
+  function startGame(){
+    syncEndFromInputs();
+    var v = validateNames(S.players.map(function(p){ return p.name; }));
+    if(!v.ok || S.players.length<CONFIG.MIN_PLAYERS){ refreshSetup(); return; }
+    fillBlankNames(S.players);
+    if(S.presenter>=S.players.length) S.presenter = 0;
+    if(!S.started){ S.started = true; S.cur = null; }
+    if(!S.cur) newTopic();
+    S.view = "play"; render();
+    try{ if(navigator.wakeLock) navigator.wakeLock.request("screen").catch(function(){}); }catch(err){}
+  }
+
+  /* ================= 描画 ================= */
   function render(){
-    if(S.view==="setup"){ elPlay.hidden = true; elSetup.hidden = false; renderSetup(); }
-    else { elSetup.hidden = true; elPlay.hidden = false; renderPlay(); }
+    elSetup.hidden = S.view!=="setup";
+    elPlay.hidden = S.view!=="play";
+    elResult.hidden = S.view!=="result";
+    if(S.view==="setup") renderSetup();
+    else if(S.view==="play") renderPlay();
+    else renderResult();
+    if(S.view!==lastView){ lastView = S.view; try{ window.scrollTo(0,0); }catch(err){} }
+  }
+
+  function stepper(key, unit, label){
+    var L = CONFIG.LIMITS[key], val = S.end[key];
+    return '<div class="step" role="group" aria-label="'+label+'">'
+      + '<button class="stepb" data-act="step" data-key="'+key+'" data-d="-1" aria-label="減らす"'+(val<=L.min?' disabled':'')+'>−</button>'
+      + '<input class="numinput" id="end-'+key+'" data-key="'+key+'" inputmode="numeric" pattern="[0-9]*" value="'+val+'" aria-label="'+label+'">'
+      + '<span class="unit">'+unit+'</span>'
+      + '<button class="stepb" data-act="step" data-key="'+key+'" data-d="1" aria-label="増やす"'+(val>=L.max?' disabled':'')+'>＋</button></div>';
   }
 
   function renderSetup(){
-    var n = S.players.length;
+    var n = S.players.length, e = S.end;
     var rows = S.players.map(function(p,i){
-      return '<div class="srow"><input class="nameinput" id="pn-'+p.id+'" data-id="'+p.id+'" value="'+esc(p.name)+'" maxlength="10" aria-label="参加者'+(i+1)+'の名前" autocomplete="off">'
-        + '<button class="rm" data-act="remove" data-id="'+p.id+'" aria-label="'+esc(p.name)+'を削除"'+(n<=2?' disabled':'')+'>×</button></div>';
+      return '<div class="srow"><input class="nameinput" id="pn-'+p.id+'" data-id="'+p.id+'" value="'+esc(p.name)+'" maxlength="'+CONFIG.NAME_MAX+'" placeholder="名前を入力" aria-label="参加者'+(i+1)+'の名前" aria-invalid="false" autocomplete="off" enterkeyhint="next">'
+        + '<button class="rm" data-act="remove" data-id="'+p.id+'" aria-label="'+esc(p.name||"この参加者")+'を削除"'+(n<=CONFIG.MIN_PLAYERS?' disabled':'')+'>×</button></div>';
     }).join("");
+
+    var types = [["turns","A","指定ターン"],["score","B","目標スコア"],["free","C","自由終了"]].map(function(t){
+      return '<button data-act="endtype" data-type="'+t[0]+'" aria-pressed="'+(e.type===t[0])+'"><span class="L">'+t[1]+'</span>'+t[2]+'</button>';
+    }).join("");
+
+    var panel = "";
+    if(e.type==="turns"){
+      var by = e.turnsBy==="total";
+      panel = '<div class="subseg" role="group" aria-label="ターンの数え方">'
+        + '<button data-act="turnsby" data-by="perPlayer" aria-pressed="'+(!by)+'">全員が出題者を○回</button>'
+        + '<button data-act="turnsby" data-by="total" aria-pressed="'+by+'">総ターン数を指定</button></div>'
+        + (by ? stepper("total","問","総ターン数") : stepper("perPlayer","回","1人あたりの出題回数"));
+    } else if(e.type==="score"){
+      panel = stepper("target","点","目標スコア");
+    }
+    panel += '<p class="hint2" id="end-hint"></p>';
+
     elSetup.innerHTML =
       '<div class="setup">'
       + '<h1><span class="b1">カタカナーシ</span> <span class="x">×</span> <span class="b2">エイゴダーケ</span></h1>'
-      + '<p class="lead">飲み会用の合体ゲーム。参加者を入れて、あとはお題を回すだけ。</p>'
+      + '<p class="lead">飲み会用の合体ゲーム。参加者と終わり方を決めて始めよう。</p>'
+      + '<div class="sect"><h2>プレイヤー登録 <span class="pcount">'+n+'/'+CONFIG.MAX_PLAYERS+'人</span></h2>'
       + '<div style="display:grid;gap:8px" id="plrows">'+rows+'</div>'
-      + '<button class="add" data-act="add"'+(n>=10?' disabled':'')+'>＋ 参加者を追加（'+n+'/10人）</button>'
+      + '<button class="add" data-act="add"'+(n>=CONFIG.MAX_PLAYERS?' disabled':'')+'>＋ 参加者を追加</button>'
+      + '<p class="msg" id="setup-msg" role="alert"></p></div>'
+      + '<div class="sect"><h2>ゲームの終わり方</h2>'
+      + '<div class="endseg" role="group" aria-label="終了条件">'+types+'</div>'
+      + '<div class="panel">'+panel+'</div></div>'
       + '<details><summary>ルールと得点</summary><ul>'
       + '<li>出題者がお題を、モードごとの制限つきで説明する。</li>'
       + '<li>カタカナーシはカタカナ語禁止。エイゴダーケは英語だけで説明。</li>'
@@ -268,14 +492,16 @@ details li{margin:4px 0}
       + '<li>誰も当てられなければ加点なし。</li>'
       + '<li>出題者がカタカナーシでカタカナを話す、またはエイゴダーケで英語以外を話したら「失敗」。出題者から1点減点（0点なら-1点になる）。</li>'
       + '<li>おてつきは1つのお題につき1回まで。2回目でそのお題の解答権を失う。</li>'
-      + '<li>正解か全員不正解で、次のお題と次の出題者に進む。</li></ul></details>'
-      + '<button class="go" data-act="start"'+(n<2?' disabled':'')+'>'+(S.started?'ゲームに戻る':'ゲーム開始')+'</button>'
+      + '<li>正解か全員不正解で、次のお題と次の出題者に進む。</li>'
+      + '<li>終わり方は、指定ターン・目標スコア・自由終了から選べる。</li></ul></details>'
+      + '<button class="go" id="go" data-act="start">'+(S.started?'ゲームに戻る':'ゲーム開始')+'</button>'
       + '</div>';
-    if(focusNew){ var f = document.getElementById("pn-"+focusNew); if(f){ f.focus(); f.select(); } focusNew = null; }
+    refreshSetup();
+    if(focusNew){ var f = document.getElementById("pn-"+focusNew); if(f){ f.focus(); } focusNew = null; }
   }
 
   function renderPlay(){
-    var cur = S.cur, M = MODES[cur.m], pres = S.players[S.presenter];
+    var cur = S.cur, M = MODES[cur.m], pres = S.players[S.presenter], e = S.end;
     var maxScore = 0; S.players.forEach(function(p){ if(p.score>maxScore) maxScore = p.score; });
     elPlay.setAttribute("data-cur", cur.m);
     var covered = S.hide && !S.revealed;
@@ -291,6 +517,7 @@ details li{margin:4px 0}
       var isPres = i===S.presenter, locked = p.foul>=2;
       var tags = (isPres?'<span class="tag">出題者</span>':'') + (locked?'<span class="tag warn">解答権なし</span>':'')
         + (!isPres && p.foul===1?'<span class="tag warn">おてつき1回</span>':'')
+        + (e.type==="turns" && e.turnsBy==="perPlayer" ? '<span class="tag sub">出題'+p.hosted+'/'+e.perPlayer+'</span>' : '')
         + (maxScore>0 && p.score===maxScore?'<span class="tag top">トップ</span>':'');
       var acts = isPres
         ? '<div class="pacts"><button class="pbtn fail" data-act="fail">失敗</button></div>'
@@ -304,40 +531,67 @@ details li{margin:4px 0}
       '<header class="bar"><div class="brand"><span class="b1">カタカナーシ</span><span class="x">×</span><span class="b2">エイゴダーケ</span></div>'
       + '<div class="tools"><button class="chip" data-act="undo"'+(S.hist.length?'':' disabled')+'>戻す</button>'
       + '<button class="chip" data-act="edit">参加者</button>'
-      + '<button class="chip'+(S.confirmReset?' danger':'')+'" data-act="reset">'+(S.confirmReset?'もう一度でリセット':'新ゲーム')+'</button></div></header>'
+      + '<button class="chip'+(S.confirm==="finish"?' danger':'')+'" data-act="finish">'+(S.confirm==="finish"?'もう一度で終了':'終了')+'</button>'
+      + '<button class="chip'+(S.confirm==="reset"?' danger':'')+'" data-act="reset">'+(S.confirm==="reset"?'もう一度でリセット':'新ゲーム')+'</button></div></header>'
       + '<div class="layout"><div class="left">'
       + '<div class="seg" role="group" aria-label="モード">'+seg+'</div>'
-      + '<article class="card"><div class="card-top"><span class="badge">'+M.name+'</span><span class="cat">'+esc(cur.c)+'</span><span class="round">第'+S.round+'問</span></div>'
+      + '<article class="card"><div class="card-top"><span class="badge">'+M.name+'</span><span class="cat">'+esc(cur.c)+'</span><span class="round">第'+(S.done+1)+'問</span></div>'
       + topicHtml
       + '<div class="rule">'+M.rule+'</div>'
       + '<div class="who">出題者　<b>'+esc(pres.name)+'</b></div>'
       + '<button class="hidetoggle" data-act="hide" aria-pressed="'+S.hide+'">お題を伏せる：'+(S.hide?'オン':'オフ')+'</button></article>'
       + '<div class="actions"><button class="btn-main" data-act="none">全員不正解 → 次のお題へ</button>'
       + '<div class="row2"><button class="btn-sub" data-act="skip">お題チェンジ</button><button class="btn-sub" data-act="swap">出題者交代</button></div></div>'
-      + '</div><div class="right"><h2>参加者と得点</h2><ul class="plist">'+rows+'</ul></div></div>';
+      + '</div><div class="right"><h2>参加者と得点</h2><p class="endinfo" id="endinfo">'+esc(endProgress(S))+'</p><ul class="plist">'+rows+'</ul></div></div>';
   }
 
-  /* ---- events ---- */
+  function renderResult(){
+    var rk = ranking(S.players), top = rk.filter(function(x){ return x.rank===1; });
+    var reason = {
+      turns:"指定ターンが終わりました（全"+S.done+"問）",
+      score:"目標 "+S.end.target+"点に届きました（全"+S.done+"問）",
+      manual:"「終了」ボタンでゲームを終えました（全"+S.done+"問）"
+    }[S.result.reason];
+    var allTie = S.players.length>1 && top.length===S.players.length;
+    var banner = allTie ? "全員同点" : top.map(function(x){ return esc(x.p.name); }).join("・");
+    var kicker = allTie ? "結果" : (top.length>1 ? "同点1位" : "優勝");
+    var rows = rk.map(function(x){
+      return '<li class="rrow'+(x.rank===1 && !allTie?' first':'')+'"><span class="rk">'+x.rank+'</span><span class="rn">'+esc(x.p.name)+'</span>'
+        + '<span class="rs'+(x.p.score<0?' neg':'')+'">'+x.p.score+'<small>点</small></span></li>';
+    }).join("");
+    elResult.innerHTML =
+      '<div class="result"><div class="banner"><span class="k">'+kicker+'</span><span class="w" id="winner">'+banner+'</span><span class="why">'+reason+'</span></div>'
+      + '<ol class="rlist">'+rows+'</ol>'
+      + '<div class="actions"><button class="go" data-act="again">同じ設定でもう一度</button>'
+      + '<div class="row2"><button class="btn-sub" data-act="newsetup">設定を変えて新しいゲーム</button>'
+      + '<button class="btn-sub" data-act="undo"'+(S.hist.length?'':' disabled')+'>直前に戻す</button></div></div></div>';
+  }
+
+  /* ================= イベント ================= */
   document.addEventListener("click", function(e){
     var b = e.target.closest("[data-act]"); if(!b || b.disabled) return;
     var act = b.getAttribute("data-act"), id = parseInt(b.getAttribute("data-id"),10);
+    if(act!=="reset" && act!=="finish") S.confirm = null;
     if(act==="add"){
-      if(S.players.length>=10) return;
-      var p = {id:S.nextId++,name:"プレイヤー"+(S.players.length+1),score:0,foul:0};
-      S.players.push(p); focusNew = p.id; render();
+      if(S.players.length>=CONFIG.MAX_PLAYERS) return;
+      var p = newPlayer(""); S.players.push(p); focusNew = p.id; render();
     } else if(act==="remove"){
-      if(S.players.length<=2) return;
-      var idx = S.players.findIndex(function(p){ return p.id===id; }); if(idx<0) return;
+      if(S.players.length<=CONFIG.MIN_PLAYERS) return;
+      var idx = S.players.findIndex(function(q){ return q.id===id; }); if(idx<0) return;
       S.players.splice(idx,1);
       if(idx<S.presenter) S.presenter--;
       if(S.presenter>=S.players.length) S.presenter = 0;
       S.hist = []; render();
-    } else if(act==="start"){
-      S.players.forEach(function(p,i){ if(!p.name.trim()) p.name = "プレイヤー"+(i+1); });
-      if(S.presenter>=S.players.length) S.presenter = 0;
-      S.started = true; S.view = "play"; if(!S.cur) newTopic(); render();
-      try{ if(navigator.wakeLock) navigator.wakeLock.request("screen").catch(function(){}); }catch(err){}
-    } else if(act==="edit"){ S.view = "setup"; render(); }
+    } else if(act==="endtype"){ S.end.type = b.getAttribute("data-type"); render(); }
+    else if(act==="turnsby"){ S.end.turnsBy = b.getAttribute("data-by"); render(); }
+    else if(act==="step"){
+      var key = b.getAttribute("data-key"), L = CONFIG.LIMITS[key];
+      syncEndFromInputs();
+      S.end[key] = clampInt(S.end[key] + parseInt(b.getAttribute("data-d"),10), L.min, L.max, S.end[key]);
+      render();
+    }
+    else if(act==="start"){ startGame(); }
+    else if(act==="edit"){ S.view = "setup"; render(); }
     else if(act==="mode"){ setMode(b.getAttribute("data-mode")); }
     else if(act==="correct"){ correct(id); }
     else if(act==="foul"){ foul(id); }
@@ -348,15 +602,52 @@ details li{margin:4px 0}
     else if(act==="undo"){ undo(); }
     else if(act==="hide"){ S.hide = !S.hide; S.revealed = false; render(); }
     else if(act==="reveal"){ S.revealed = true; render(); }
-    else if(act==="reset"){
-      if(S.confirmReset){ clearTimeout(resetTimer); resetGame(); }
-      else { S.confirmReset = true; render(); clearTimeout(resetTimer); resetTimer = setTimeout(function(){ S.confirmReset = false; if(S.view==="play") render(); }, 3000); }
+    else if(act==="again"){ resetGame(); }
+    else if(act==="newsetup"){ backToSetup(); }
+    else if(act==="reset" || act==="finish"){
+      if(S.confirm===act){
+        clearTimeout(confirmTimer); S.confirm = null;
+        if(act==="reset") resetGame(); else finishManual();
+      } else {
+        S.confirm = act; render(); clearTimeout(confirmTimer);
+        confirmTimer = setTimeout(function(){ S.confirm = null; if(S.view==="play") render(); }, 3000);
+      }
     }
   });
+
   document.addEventListener("input", function(e){
-    var t = e.target; if(!t.classList || !t.classList.contains("nameinput")) return;
-    var p = byId(parseInt(t.getAttribute("data-id"),10)); if(p) p.name = t.value;
+    var t = e.target; if(!t.classList) return;
+    if(t.classList.contains("nameinput")){
+      var p = byId(parseInt(t.getAttribute("data-id"),10)); if(p) p.name = t.value;
+      refreshSetup();
+    } else if(t.classList.contains("numinput")){
+      var key = t.getAttribute("data-key"), L = CONFIG.LIMITS[key];
+      S.end[key] = clampInt(t.value, L.min, L.max, S.end[key]);
+      refreshSetup();
+    }
   });
+  document.addEventListener("change", function(e){
+    var t = e.target; if(!t.classList || !t.classList.contains("numinput")) return;
+    var key = t.getAttribute("data-key"), L = CONFIG.LIMITS[key];
+    S.end[key] = clampInt(t.value, L.min, L.max, S.end[key]);
+    t.value = S.end[key]; refreshSetup();
+  });
+  document.addEventListener("keydown", function(e){
+    var t = e.target;
+    if(e.key!=="Enter" || !t.classList || !t.classList.contains("nameinput")) return;
+    e.preventDefault();
+    var list = Array.prototype.slice.call(document.querySelectorAll(".nameinput")), i = list.indexOf(t);
+    if(i>=0 && i<list.length-1){ list[i+1].focus(); }
+    else if(S.players.length<CONFIG.MAX_PLAYERS){ var p = newPlayer(""); S.players.push(p); focusNew = p.id; render(); }
+    else { t.blur(); }
+  });
+
+  /* テスト用の公開（ゲーム動作には影響しません） */
+  if(typeof window!=="undefined"){
+    window.KatakanaGame = { CONFIG:CONFIG, clampInt:clampInt, cleanName:cleanName, validateNames:validateNames,
+      fillBlankNames:fillBlankNames, checkEnd:checkEnd, ranking:ranking, endProgress:endProgress, endHint:endHint,
+      getState:function(){ return S; } };
+  }
 
   render();
 })();
